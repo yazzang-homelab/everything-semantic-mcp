@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+# local semantic index and model caches - never commit (contains your file paths)
+index/
+index.tmp/
+index.old/
+data/
