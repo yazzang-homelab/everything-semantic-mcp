@@ -11,3 +11,7 @@ index/
 index.tmp/
 index.old/
 data/
+build/
+build-log.txt
+dist/
+*.spec.bak

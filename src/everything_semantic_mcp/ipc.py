@@ -275,6 +275,12 @@ def send_command(cmd: int, lparam: int = 0, timeout_ms: int = 3000, instance: st
 
 _indexed_cache: dict[str, Indexed] = {}
 
+# Everything answers QUERY2 by sending WM_COPYDATA back to the window named in the request.
+# When two threads of one process query at the same time, a reply can be delivered while the
+# other query's message pump runs and is lost to it (observed: the UI's status poll and a
+# search overlapping -> 'no query reply within 30s'). One query in flight per process.
+_query_lock = threading.Lock()
+
 
 def indexed(instance: str = "", max_age: float = 60.0) -> Indexed:
     """Which properties Everything indexes, asked over IPC (cached for *max_age* s).
@@ -326,6 +332,35 @@ def query(
     """
     if sort not in SORTS:
         raise EverythingError(f"unknown sort {sort!r}; one of {sorted(SORTS)}")
+    with _query_lock:
+        return _query_locked(
+            search,
+            max_results,
+            offset,
+            sort,
+            match_case,
+            whole_word,
+            match_path,
+            regex,
+            request_flags,
+            timeout_s,
+            instance,
+        )
+
+
+def _query_locked(
+    search,
+    max_results,
+    offset,
+    sort,
+    match_case,
+    whole_word,
+    match_path,
+    regex,
+    request_flags,
+    timeout_s,
+    instance,
+) -> QueryResult:
     ctypes, w, user32, kernel32, wndproc_t, cds_t, wndclass_t = _win32()
     if request_flags is None:
         request_flags = metadata_flags(instance)

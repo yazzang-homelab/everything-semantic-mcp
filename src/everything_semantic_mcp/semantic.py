@@ -19,12 +19,27 @@ import contextlib
 import gc
 import json
 import os
+import re
 import shutil
 import threading
 import time
 from pathlib import Path
 
-from . import ipc
+_SEP = re.compile(r"[\\/]")
+
+
+def _is_dir(path: str) -> bool:
+    return path.endswith(("\\", "/"))
+
+
+def _parent(path: str) -> str:
+    m = max(path.rfind("\\"), path.rfind("/"))
+    return path[: m + 1]
+
+
+def _base(path: str) -> str:
+    return _SEP.split(path.rstrip("\\/"))[-1]
+
 
 MODEL_NAME = os.environ.get("EVERYTHING_SEMANTIC_MODEL", "minishlab/potion-multilingual-128M")
 PCA_DIMS = 64
@@ -34,8 +49,16 @@ IDLE_SEC = float(os.environ.get("EVERYTHING_SEMANTIC_IDLE_SEC", "900"))
 
 
 def data_dir() -> Path:
-    default = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "everything-semantic-mcp"
-    return Path(os.environ.get("EVERYTHING_SEMANTIC_DATA", default)) / "index"
+    from .engine import data_home
+
+    target = Path(os.environ.get("EVERYTHING_SEMANTIC_DATA", data_home())) / "index"
+    # One-time move from the pre-findex location (everything-semantic-mcp 0.1.x).
+    legacy = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "everything-semantic-mcp" / "index"
+    if not target.exists() and legacy.is_dir() and "EVERYTHING_SEMANTIC_DATA" not in os.environ:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with contextlib.suppress(OSError):
+            shutil.move(str(legacy), str(target))
+    return target
 
 
 # Folders that drown real work: caches, VCS, runtimes, OS, recycle bins, package stores.
@@ -53,6 +76,13 @@ DEFAULT_NOISE = [
     "\\.venv\\",
     "\\venv\\",
     "\\__pycache__\\",
+    "/.git/",
+    "/node_modules/",
+    "/.cache/",
+    "/.venv/",
+    "/site-packages/",
+    "/Library/",
+    "/__pycache__/",
 ]
 DEFAULT_DOC_EXTS = "pdf;doc;docx;xls;xlsx;xlsm;ppt;pptx;hwp;hwpx;odt;ods;odp;rtf;csv;txt;md;ipynb"
 
@@ -92,18 +122,84 @@ def _np():
 
 
 def _embedder():
+    """Return an object with ``.encode(texts, normalize=True, use_multiprocessing=False)``.
+
+    In-process by default (tests, library use). The UI and MCP server set
+    FINDEX_EMBED_PROCESS=1: the model then lives in a worker process, because building it
+    holds the GIL for ~15 s (tokenizer from_file/__setstate__ in Rust) and measured name
+    searches in the same process slowed from 0.4 s to 8 s while it loaded.
+    """
     global _model, _model_used
     with _model_lock:
         if _model is None:
-            try:
-                from model2vec import StaticModel
-            except ImportError as exc:
-                raise RuntimeError(
-                    'Semantic search needs the optional extra: pip install "everything-semantic-mcp[semantic]"'
-                ) from exc
-            _model = StaticModel.from_pretrained(MODEL_NAME)
+            if os.environ.get("FINDEX_EMBED_PROCESS") == "1":
+                _model = _RemoteEmbedder()
+            else:
+                try:
+                    from model2vec import StaticModel
+                except ImportError as exc:
+                    raise RuntimeError(
+                        'Semantic search needs the optional extra: pip install "everything-semantic-mcp[semantic]"'
+                    ) from exc
+                _model = StaticModel.from_pretrained(MODEL_NAME)
         _model_used = time.monotonic()
         return _model
+
+
+def _embed_worker(conn, model_name: str) -> None:  # runs in the child process
+    from model2vec import StaticModel
+
+    model = StaticModel.from_pretrained(model_name)
+    conn.send("ready")
+    while True:
+        texts = conn.recv()
+        if texts is None:
+            return
+        conn.send(model.encode(texts, normalize=True, use_multiprocessing=False))
+
+
+class _RemoteEmbedder:
+    """Model2Vec in a child process; encode() round-trips numpy arrays over a pipe."""
+
+    def __init__(self) -> None:
+        import multiprocessing as mp
+
+        ctx = mp.get_context("spawn")
+        self._conn, child = ctx.Pipe()
+        self._proc = ctx.Process(target=_embed_worker, args=(child, MODEL_NAME), daemon=True)
+        self._proc.start()
+        self._lock = threading.Lock()
+        msg = self._conn.recv()  # blocks this (background) thread only; the GIL is free meanwhile
+        if msg != "ready":
+            raise RuntimeError(f"embedding worker failed to start: {msg!r}")
+
+    def encode(self, texts, normalize: bool = True, use_multiprocessing: bool = False):
+        with self._lock:
+            self._conn.send(list(texts))
+            return self._conn.recv()
+
+    def close(self) -> None:
+        with contextlib.suppress(Exception):
+            self._conn.send(None)
+        self._proc.join(timeout=5)
+        if self._proc.is_alive():
+            self._proc.kill()
+
+
+def warm_up() -> None:
+    """Load the model in the background so the first query does not wait for it.
+
+    Measured on an i7-1255U laptop: ~20 s, almost all inside StaticModel construction
+    (tokenizer + weights files read in ~4 s; an int8 copy only saved ~10%). Only runs when a
+    semantic index exists (otherwise nothing uses the model).
+    """
+
+    def run() -> None:
+        if _load() is not None:
+            with contextlib.suppress(Exception):
+                _embedder()
+
+    threading.Thread(target=run, daemon=True, name="semantic-warmup").start()
 
 
 def release_idle_model() -> bool:
@@ -115,6 +211,8 @@ def release_idle_model() -> bool:
             and not _build_state.get("running")
             and time.monotonic() - _model_used > IDLE_SEC
         ):
+            if isinstance(_model, _RemoteEmbedder):
+                _model.close()
             _model = None
             gc.collect()
             return True
@@ -123,11 +221,11 @@ def release_idle_model() -> bool:
 
 def text_for(path: str) -> str:
     """What a person reads: the last three path segments, extension and underscores removed."""
-    parts = [p for p in path.split("\\") if p]
+    parts = [p for p in _SEP.split(path) if p]
     tail = parts[-3:] or [path]
     last = tail[-1]
     dot = last.rfind(".")
-    if not path.endswith("\\") and 0 < dot >= len(last) - 6:  # files only; folders keep their dots
+    if not _is_dir(path) and 0 < dot >= len(last) - 6:  # files only; folders keep their dots
         tail[-1] = last[:dot]
     return " / ".join(t.replace("_", " ") for t in tail)
 
@@ -139,30 +237,14 @@ def _encode(texts: list[str]):
     return v
 
 
-def _collect(query: str, instance: str) -> list[str]:
-    out: list[str] = []
-    offset = 0
-    while True:
-        r = ipc.query(
-            query,
-            max_results=PAGE,
-            offset=offset,
-            match_path=True,
-            request_flags=ipc.REQ_FULL_PATH,
-            sort="path",
-            instance=instance,
-        )
-        out.extend(i["full_path"] + ("\\" if i["type"] == "folder" else "") for i in r.items)
-        offset += len(r.items)
-        if not r.items or offset >= r.total:
-            return out
+def _collect(query: str, engine) -> list[str]:
+    """All paths matching *query* from the active engine (folders end with a separator)."""
+    return list(engine.iter_paths(query))
 
 
 def _skip_vendored(paths: list[str]) -> list[str]:
     """Drop everything below a folder that contains __init__.py/package.json (bundled code)."""
-    roots = {
-        p.rsplit("\\", 1)[0] + "\\" for p in paths if p.rsplit("\\", 1)[-1] in ("__init__.py", "package.json")
-    }
+    roots = {_parent(p) for p in paths if _base(p) in ("__init__.py", "package.json")}
     if not roots:
         return paths
     ordered = sorted(roots)
@@ -175,8 +257,8 @@ def _skip_vendored(paths: list[str]) -> list[str]:
     return [p for p in paths if not inside(p)]
 
 
-def build(instance: str = "") -> dict:
-    """(Re)build the index from the live Everything database. Atomic: tmp dir + rename."""
+def build(engine) -> dict:
+    """(Re)build from the active engine (Everything or local index). Atomic: tmp dir + rename."""
     np = _np()
     started = time.perf_counter()
     state = _build_state
@@ -185,7 +267,7 @@ def build(instance: str = "") -> dict:
         paths: list[str] = []
         for name, q in sources().items():
             state["phase"] = f"listing {name}"
-            paths.extend(_collect(q, instance))
+            paths.extend(_collect(q, engine))
         paths = _skip_vendored(paths)
         state.update(phase="embedding", total=len(paths), embedded=0)
         vectors = np.empty((len(paths), 256), dtype=np.int8)
@@ -243,14 +325,14 @@ def build(instance: str = "") -> dict:
         state.pop("phase", None)
 
 
-def build_async(instance: str = "") -> dict:
+def build_async(engine) -> dict:
     if _build_state.get("running"):
         return {"started": False, "reason": "a build is already running", **status()}
 
     def run() -> None:
         # build() records failures in status()["build"]["error"]; the caller already returned.
         with contextlib.suppress(Exception):
-            build(instance)
+            build(engine)
 
     threading.Thread(target=run, daemon=True, name="semantic-build").start()
     return {"started": True}
@@ -296,7 +378,7 @@ def _mask(idx: dict, prefix: str, kind: str):
         cache[key] = np.fromiter(
             (
                 (not prefix or p[: len(prefix)].lower() == prefix)
-                and (kind == "any" or p.endswith("\\") == (kind == "folder"))
+                and (kind == "any" or _is_dir(p) == (kind == "folder"))
                 for p in paths
             ),
             dtype=bool,
@@ -305,7 +387,22 @@ def _mask(idx: dict, prefix: str, kind: str):
     return cache[key]
 
 
-def search(query: str, limit: int = 20, path_prefix: str = "", kind: str = "any") -> dict:
+def model_ready() -> bool:
+    return _model is not None
+
+
+def search(
+    query: str, limit: int = 20, path_prefix: str = "", kind: str = "any", *, wait: bool = True
+) -> dict:
+    if not wait and (_model is None or _index is None):
+        if not (data_dir() / "meta.json").exists():
+            raise RuntimeError(
+                "The semantic index has not been built yet: call everything_semantic_reindex first."
+            )
+        # Kick off loading if needed, but never make the caller wait for it.
+        if _index is None and not _index_lock.locked():
+            threading.Thread(target=_load, daemon=True).start()
+        raise RuntimeError("The meaning model is still loading (about 20 s after start).")
     np = _np()
     idx = _load()
     if idx is None:
@@ -317,7 +414,7 @@ def search(query: str, limit: int = 20, path_prefix: str = "", kind: str = "any"
     qr = (q - idx["mean"]) @ idx["proj"]
     qr /= np.linalg.norm(qr) + 1e-9
     coarse = idx["reduced"] @ qr
-    prefix = path_prefix.lower().rstrip("\\")
+    prefix = path_prefix.lower().rstrip("\\/")
     if prefix or kind != "any":
         # Mask before top-k so narrow filters (one share, folders only) never starve the pool.
         coarse = np.where(_mask(idx, prefix, kind), coarse, -np.inf)

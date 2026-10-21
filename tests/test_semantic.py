@@ -38,10 +38,13 @@ def test_skip_vendored_drops_package_subtree_keeps_folder():
 
 def test_build_and_search_on_fixture(tmp_path, monkeypatch):
     monkeypatch.setenv("EVERYTHING_SEMANTIC_DATA", str(tmp_path))
-    corpus = [p for p in CORPUS if "~$" not in p]  # the real query excludes lock files via !"~$"
-    monkeypatch.setattr(semantic, "_collect", lambda q, instance: corpus if q.startswith("folder:") else [])
     semantic._index = None
-    meta = semantic.build()
+    with pytest.raises(RuntimeError, match="not been built"):
+        semantic.search("x", wait=False)  # no index: says so, not "loading"
+    corpus = [p for p in CORPUS if "~$" not in p]  # the real query excludes lock files via !"~$"
+    monkeypatch.setattr(semantic, "_collect", lambda q, engine: corpus if q.startswith("folder:") else [])
+    semantic._index = None
+    meta = semantic.build(engine=None)
     assert meta["count"] == len(semantic._skip_vendored(corpus))
 
     top = semantic.search("반사율 측정 결과", limit=2)["results"]

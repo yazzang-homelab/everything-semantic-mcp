@@ -1,0 +1,119 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: SQLite FTS5 trigram available
+        run: python -c "import sqlite3; c=sqlite3.connect(':memory:'); c.execute(\"create virtual table t using fts5(p, tokenize='trigram')\"); print(sqlite3.sqlite_version)"
+      - name: Lint
+        run: ruff check src tests packaging
+      - name: Test (built-in engine on every OS; Everything tests skip without Everything)
+        env:
+          PYTHONIOENCODING: utf-8
+        run: pytest -q -p no:cacheprovider
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: findex-windows-x64.exe
+            built: dist/findex.exe
+          - os: macos-latest
+            asset: findex-macos-arm64
+            built: dist/findex
+          - os: macos-13
+            asset: findex-macos-x64
+            built: dist/findex
+          - os: ubuntu-22.04
+            asset: findex-linux-x64
+            built: dist/findex
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e ".[semantic]" pyinstaller
+      - name: Build one-file executable
+        working-directory: packaging
+        run: pyinstaller --noconfirm --clean --distpath ../dist --workpath ../build findex.spec
+      - name: Smoke test the binary (built-in engine, temp folder)
+        shell: bash
+        env:
+          FINDEX_ENGINE: local
+          FINDEX_DATA: ${{ runner.temp }}/findex-data
+          PYTHONIOENCODING: utf-8
+        run: |
+          mkdir -p "$RUNNER_TEMP/tree/보고서 2026"
+          echo x > "$RUNNER_TEMP/tree/보고서 2026/budget_final.xlsx"
+          ./${{ matrix.built }} roots add "$RUNNER_TEMP/tree"
+          ./${{ matrix.built }} scan
+          ./${{ matrix.built }} status
+          python - <<'EOF'
+          import asyncio, json, os, sys
+          from mcp import ClientSession, StdioServerParameters
+          from mcp.client.stdio import stdio_client
+          exe = os.path.abspath("${{ matrix.built }}")
+          async def main():
+              async with stdio_client(StdioServerParameters(command=exe, args=["mcp"], env=dict(os.environ))) as (r, w), ClientSession(r, w) as s:
+                  await s.initialize()
+                  tools = {t.name for t in (await s.list_tools()).tools}
+                  assert "everything_find" in tools, tools
+                  res = await s.call_tool("everything_search", {"query": "budget ext:xlsx"})
+                  d = res.structured_content or json.loads(res.content[0].text)
+                  assert d["engine"] == "local" and d["total"] == 1, d
+                  print("binary MCP OK:", d["results"][0]["full_path"])
+          asyncio.run(main())
+          EOF
+      - name: Rename
+        shell: bash
+        run: |
+          mkdir -p out
+          cp "${{ matrix.built }}" "out/${{ matrix.asset }}"
+          cd out && (sha256sum "${{ matrix.asset }}" 2>/dev/null || shasum -a 256 "${{ matrix.asset }}") > "${{ matrix.asset }}.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: out/*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la assets
+          gh release create "${GITHUB_REF_NAME}" assets/* \
+            --title "findex ${GITHUB_REF_NAME}" \
+            --notes-file packaging/RELEASE_NOTES.md

@@ -1,180 +1,125 @@
 <div align="center">
 
-# everything-semantic-mcp
+# findex
 
-**파일 이름을 몰라도 AI가 찾아줍니다.**<br>
-[voidtools Everything](https://www.voidtools.com/ko-kr/) 위에 **로컬 의미 검색**과 **색인 자가 진단**을 얹은 MCP 서버
+**파일 이름을 몰라도 찾는 검색 — 사람은 검색 창으로, AI 에이전트는 MCP로.**<br>
+Windows · macOS · Linux 실행 파일 하나. 설치·Python 불필요.
 
 <b>한국어</b> · <a href="README.en.md">English</a>
 
 <a href="promo/everything-semantic-mcp.mp4"><img src="promo/poster.png" width="420" alt="이름 검색 0건, 의미 검색으로 찾는 예시 (클릭하면 22초 영상)"></a>
 
+**[⬇ 최신 버전 다운로드](https://github.com/yazzang-homelab/everything-semantic-mcp/releases/latest)**
+
 </div>
 
 ---
 
-## 핵심 기능
+## 이런 걸 찾습니다
 
-### 1. 의미 검색 — 이름이 아니라 뜻으로
-Everything은 이름의 **부분 문자열**만 맞춥니다. "신입 교육 자료"로 찾으면 실제 폴더명이 "신입사원 온보딩 가이드"일 때 0건입니다. `everything_semantic_search`는 폴더·문서 이름을 다국어 임베딩으로 색인해 **뜻이 가까운 것**을 찾습니다.
+| 이렇게 검색하면 | 이름 검색만으로는 | findex |
+|---|---|---|
+| `신입 교육 자료` | 0건 (예: 실제 폴더명이 "신입사원 온보딩 가이드"일 때) | 상위로 찾음 |
+| `분기 매출 보고서 위치` | 0건 ("위치"라는 단어가 이름에 없음) | "2026 Q3 매출 보고서" 폴더 상위 |
+| `budget ext:xlsx dm:last30days` | 정상 | 그대로 정확 검색 |
 
-- **완전 로컬**: GPU·API 키·클라우드 전송 없음. 처음 한 번 모델(약 120MB)만 내려받습니다.
-- **가볍고 빠름**: [Model2Vec](https://github.com/MinishLab/model2vec) 정적 임베딩(토큰 조회 + 평균, ONNX·torch 불필요).
-- **2단계 재정렬**: 64차원 PCA로 후보를 고르고 256차원 int8 벡터로 다시 순위를 매깁니다. 전수 256차원 검색 대비 recall@20 0.98, 쿼리당 약 50 ms.
-- **한국어·영어 혼용** 질의 지원 (`"회의록"`, `"budget report"`).
+- **이름 검색**: Everything 문법(`ext:`, `path:`, `dm:`, `size:`, `folder:`, `!`, `|`, `*`).
+- **단어 하나가 안 맞아도**: 모든 단어가 들어간 항목이 없으면, 가장 많은 단어가 맞는 순으로 보여줍니다(BM25 보조).
+- **뜻으로 찾기**: 폴더·문서 이름을 다국어 임베딩으로 색인. 한국어·영어 섞어도 됩니다. 전부 내 PC 안에서.
 
-### 2. 자가 진단·정비 — Everything이 멈추는 이유를 찾아줍니다
-`everything_health`는 Everything.ini와 상태를 읽어, 실제로 Everything을 "응답 없음"으로 만든 설정들을 찾아내고 해결법을 함께 돌려줍니다.
+## 시작하기 (1분)
 
-| 진단 | 영향 |
-|---|---|
-| NTFS로 색인 중인 드라이브를 폴더 색인에 **이중 등록** | 메모리 약 2배, 전체 재스캔 반복 |
-| 네트워크·클라우드 폴더에 **변경 감시** 켜짐 | 알림 버퍼가 넘쳐 전체 재스캔 |
-| 재스캔이 **일반 I/O 우선순위** | 재스캔 중 UI 멈춤 |
-| 놓친 예약 재스캔을 **시작 시 즉시 실행** | 켤 때마다 전체 재스캔 |
-| 색인 DB가 **오래 저장 안 됨** | 강제 종료돼 매번 재구축 |
-| **32비트** 빌드 | 2GB 주소 공간 한계로 대형 색인에서 멈춤 |
+1. **[Releases](https://github.com/yazzang-homelab/everything-semantic-mcp/releases/latest)** 에서 내 OS 파일을 받습니다.
 
-`everything_maintain`으로 DB 저장·폴더 재스캔·재구축을 실행할 수 있습니다.
+   | OS | 파일 |
+   |---|---|
+   | Windows 10/11 | `findex-windows-x64.exe` |
+   | macOS Apple Silicon (M1~) | `findex-macos-arm64` |
+   | macOS Intel | `findex-macos-x64` |
+   | Linux x64 | `findex-linux-x64` |
 
-### 3. 순수 Python IPC — es.exe·SDK DLL 없음
-Everything이 공식 문서로 제공하는 IPC(`WM_COPYDATA` / `EVERYTHING_IPC_QUERY2`)로 직접 통신합니다.
+2. **실행** — 더블클릭하면 브라우저에 검색 창이 열립니다.
+   - Windows SmartScreen이 막으면 "추가 정보 → 실행" (서명 인증서 없는 오픈소스 빌드).
+   - macOS: 터미널에서 `xattr -d com.apple.quarantine ~/Downloads/findex-macos-*; chmod +x ~/Downloads/findex-macos-*` 후 실행.
+   - Linux: `chmod +x findex-linux-x64 && ./findex-linux-x64`
 
-- **크기·날짜가 응답에 포함** → 파일마다 `os.stat()`을 하지 않아 NAS·공유폴더에서도 빠릅니다.
-- **색인된 속성만 요청** → 색인 안 된 생성일을 요청하면 Everything이 결과마다 디스크를 읽어 수십 초가 걸리는 문제를 피합니다.
-- 한글·UNC 경로(`\\server\share`), 이름 붙은 인스턴스(Everything 1.5a 등) 지원.
+3. **처음 한 번** 검색 창 위쪽의 **"의미 색인 만들기"** 를 누릅니다(모델 약 120MB 자동 다운로드, 수 분).
 
----
+### 어떤 색인을 쓰나요?
+- **Windows + [Everything](https://www.voidtools.com/ko-kr/) 실행 중** → Everything의 색인을 그대로 사용(수백만 개도 즉시).
+- **그 외(macOS·Linux·Everything 없는 Windows)** → findex가 자체 색인을 만듭니다. 첫 실행 때 홈 폴더(Windows는 고정 드라이브 전체)를 스캔합니다.
+  - 범위 바꾸기: `findex roots add /Volumes/NAS`, `findex roots remove ~/Downloads`, 다시 스캔: `findex scan`
 
-## 실측 성능
+## AI 에이전트에 연결 (MCP)
 
-| 항목 | 값 |
-|---|---|
-| 색인 항목 수 | 6,126,653 (로컬 + 네트워크 폴더) |
-| 이름 검색 (100건, 중앙값) | 83 ~ 940 ms (질의에 따라) |
-| 의미 색인 대상 / 빌드 시간 | 1,177,343개 이름 / 264초 |
-| 의미 검색 1회 (중앙값) | 45 ~ 58 ms |
-| 2단계 재정렬 recall@20 | 0.98 (전수 256차원 대비) |
-| 진단대로 설정 수정 후 Everything 메모리 | 635 MB(응답 없음) → 약 350~400 MB |
-
-**측정 조건**: Windows 11 · Intel i7-1255U · Everything 1.4.1.1032 x64 · Python 3.13. 직접 재현: `python benchmarks/bench.py --reindex`. 수치는 이 환경 기준이며 색인 규모·디스크·네트워크에 따라 달라집니다.
-
----
-
-## 설치
-
-### 준비물
-1. **Windows** + [Everything](https://www.voidtools.com/ko-kr/) 설치 후 **실행 중**(트레이 아이콘). 수백만 항목이면 **64비트판** 권장.
-2. **[uv](https://docs.astral.sh/uv/)** (`winget install astral-sh.uv`) 또는 Python 3.10+.
-
-### 실행 확인
-```powershell
-uvx --from "everything-semantic-mcp[semantic] @ git+https://github.com/yazzang-homelab/everything-semantic-mcp" everything-semantic-mcp status
-```
-
-의미 검색이 필요 없으면 `[semantic]`을 빼면 됩니다. 기본 설치는 `mcp` 하나만 의존합니다.
-
-### MCP 클라이언트 등록
-
-아래에서 `SPEC`은 `"everything-semantic-mcp[semantic] @ git+https://github.com/yazzang-homelab/everything-semantic-mcp"`입니다.
+실행 파일 경로를 `command`로, 인자 `mcp`를 넣으면 됩니다.
 
 **Claude Code**
-```powershell
-claude mcp add everything -- uvx --from SPEC everything-semantic-mcp
+```bash
+claude mcp add findex -- /경로/findex mcp
 ```
 
-**Claude Desktop** (`%APPDATA%\Claude\claude_desktop_config.json`)
+**Claude Desktop** (`claude_desktop_config.json`)
 ```json
-{
-  "mcpServers": {
-    "everything": {
-      "command": "uvx",
-      "args": ["--from", "everything-semantic-mcp[semantic] @ git+https://github.com/yazzang-homelab/everything-semantic-mcp", "everything-semantic-mcp"]
-    }
-  }
-}
+{ "mcpServers": { "findex": { "command": "C:\\Tools\\findex-windows-x64.exe", "args": ["mcp"] } } }
 ```
 
-**gjc (Gajae Code)** (`~/.gjc/agent/mcp.json`)
-```json
-{
-  "mcpServers": {
-    "everything": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["--from", "everything-semantic-mcp[semantic] @ git+https://github.com/yazzang-homelab/everything-semantic-mcp", "everything-semantic-mcp"],
-      "timeout": 30000
-    }
-  }
-}
-```
+**Codex CLI / Cursor / gjc 등**: 같은 `command` + `args: ["mcp"]`.
 
-**Codex CLI / Cursor / 기타**: 위와 같은 `command` + `args`를 쓰면 됩니다.
-
-### 의미 색인 만들기 (처음 한 번)
-에이전트에게 "의미 색인 만들어줘"라고 하거나(`everything_semantic_reindex`), 직접:
-```powershell
-uvx --from SPEC everything-semantic-mcp reindex
-```
-색인은 `%LOCALAPPDATA%\everything-semantic-mcp\index`에 저장됩니다. 파일이 바뀌는 만큼 주기적으로 다시 만드세요. 예: 매일 새벽 5시 작업 스케줄러 등록
-```powershell
-schtasks /Create /TN "everything-semantic-reindex" /SC DAILY /ST 05:00 /TR "uvx --from \"everything-semantic-mcp[semantic] @ git+https://github.com/yazzang-homelab/everything-semantic-mcp\" everything-semantic-mcp reindex"
-```
-
----
-
-## 도구
+에이전트가 쓰는 도구:
 
 | 도구 | 용도 |
 |---|---|
-| `everything_search` | Everything 문법 이름 검색 (`ext:`, `path:`, `dm:`, `size:`, `folder:` …) |
-| `everything_count` | 질의 최대 20개의 건수만 한 번에 |
-| `everything_recent` | 최근 수정 파일 (`today`, `last7days`, …) |
-| `everything_largest` | 용량 큰 파일 |
-| `everything_semantic_search` | 뜻으로 찾기 (폴더·문서 이름, 경로·종류 필터) |
-| `everything_semantic_reindex` / `everything_semantic_status` | 의미 색인 생성 / 상태 |
-| `everything_health` | 설정 자가 진단 (위 표) |
-| `everything_maintain` | DB 저장 · 폴더 재스캔 · 재구축 |
+| `everything_find` | **자연어 요청 한 번에** — 이름 매칭 + 의미 검색 융합 |
+| `everything_search` | 정확한 이름 검색·필터·정렬 (0건이면 가장 많이 맞는 순으로 자동 완화) |
+| `everything_count` / `everything_recent` / `everything_largest` | 건수 비교 / 최근 수정 / 큰 파일 |
+| `everything_semantic_search` / `everything_semantic_reindex` | 의미만으로 검색 / 의미 색인 생성 |
+| `everything_status` / `everything_rescan` | 상태 / 자체 색인 재스캔 |
+| `everything_health` / `everything_maintain` | Everything 설정 자가 진단 / DB 저장·재스캔 (Windows + Everything) |
 
-CLI: `everything-semantic-mcp [serve|reindex|status|health]` (기본 `serve`).
+## 명령줄
 
-## 환경 변수 (모두 선택)
-
-| 변수 | 설명 |
-|---|---|
-| `EVERYTHING_INSTANCE` | 이름 붙은 인스턴스 (예: `1.5a`) |
-| `EVERYTHING_SEMANTIC_DATA` | 의미 색인 저장 위치 (기본 `%LOCALAPPDATA%\everything-semantic-mcp`) |
-| `EVERYTHING_SEMANTIC_SCOPE` | 의미 색인 대상 제한 (Everything 문법, 예: `path:"D:\Work"`) |
-| `EVERYTHING_SEMANTIC_EXCLUDE` | 추가 제외 경로 (`;` 구분) |
-| `EVERYTHING_SEMANTIC_EXTS` | 의미 색인할 문서 확장자 (`;` 구분) |
-| `EVERYTHING_SEMANTIC_MODEL` | 임베딩 모델 (기본 `minishlab/potion-multilingual-128M`) |
-| `EVERYTHING_SEMANTIC_IDLE_SEC` | 모델 미사용 시 메모리 해제까지 초 (기본 900) |
-
-## 한국어 사용 팁
-- 이름 검색은 **띄어쓰기 = AND**입니다. 실제 이름에 없는 단어(“자료”, “파일”)를 붙이면 0건이 됩니다 — 이럴 때 의미 검색을 쓰세요.
-- NAS·공유폴더는 Everything의 `도구 → 옵션 → 색인 → 폴더`에 추가해야 검색됩니다. **변경 감시는 끄고 예약 재스캔**을 쓰세요.
-- 의미 색인에는 개인 폴더가 섞이지 않게 `EVERYTHING_SEMANTIC_SCOPE`/`EXCLUDE`로 범위를 정하세요.
-
-## 개인정보
-- 모든 처리는 로컬에서 이뤄집니다. 파일 목록·이름이 외부로 나가지 않습니다(최초 모델 다운로드만 Hugging Face 접속).
-- 의미 색인 파일에는 파일 경로가 평문으로 저장됩니다. 공유 PC라면 저장 위치 권한을 확인하세요.
-
-## 관련 프로젝트
-Everything용 MCP 서버는 이미 여럿 있습니다. 이 프로젝트는 별도로 처음부터 작성했고 다음이 다릅니다.
-
-- [elis132/everything-mcp](https://github.com/elis132/everything-mcp) — es.exe 기반, 느린 함수 보호 규칙·파일 상세·통계 도구가 강점.
-- [mamertofabian/mcp-everything-search](https://github.com/mamertofabian/mcp-everything-search) — SDK DLL 기반, macOS·Linux도 지원.
-
-이 프로젝트는 **의미 검색**, **설정 자가 진단·정비**, **es.exe·DLL 없는 IPC**에 집중합니다. 이름 검색만 필요하면 위 프로젝트도 좋은 선택입니다.
-
-## 개발
-```powershell
-git clone https://github.com/yazzang-homelab/everything-semantic-mcp
-cd everything-semantic-mcp
-uv venv; uv pip install -e ".[dev]"
-pytest          # Everything이 실행 중이면 실제 IPC 테스트도 수행
-ruff check src tests
+```
+findex                 검색 창 열기 (기본)
+findex mcp             MCP 서버 (stdio)
+findex scan            자체 이름 색인 새로고침
+findex reindex         의미 색인 만들기
+findex roots [add|remove DIR]   자체 색인 범위
+findex status | health
 ```
 
+## 측정값
+
+Windows 11 · i7-1255U · Everything 1.4.1.1032 x64 · 색인 6,126,653 항목(로컬 + 네트워크 폴더):
+
+| 항목 | 값 |
+|---|---|
+| 의미 색인 | 1,177,343개 이름, 생성 264초 |
+| 의미 검색 1회 (중앙값) | 45~58 ms |
+| `find` (이름+의미 융합, 예열 후 중앙값) | 약 440 ms |
+| 2단계 재정렬 recall@20 | 0.98 (전수 256차원 대비) |
+| 시작 직후 첫 의미 검색 | 모델 로딩 약 20초 — 검색 창은 이름 결과를 먼저 보여주고 의미 결과는 준비되면 합류 |
+
+실제 사내 경로 78만 개로 평가한 검색 방식 비교(한 단어가 이름에 없는 질의 200개): 엄격한 이름 검색은 89%가 0건, 단어 완화 + 순위(findex)는 53%가 상위 10위 안에 정답. 주제 질의 20개는 이름+의미 융합이 상위 10위 적중 0.90~0.95.
+
+## 개인정보
+- 파일 내용은 읽지 않고 **이름·경로·크기·날짜만** 색인합니다.
+- 모든 처리는 내 PC 안에서. 외부 전송은 최초 모델 다운로드(Hugging Face)뿐입니다.
+- 색인 위치: Windows `%LOCALAPPDATA%\findex`, macOS `~/Library/Application Support/findex`, Linux `~/.local/share/findex`. 경로가 평문으로 저장되니 공유 PC라면 권한을 확인하세요.
+- 검색 창은 `127.0.0.1`에만 열립니다(외부 접속 불가).
+
+## 소스로 실행 / 개발
+```bash
+git clone https://github.com/yazzang-homelab/everything-semantic-mcp
+cd everything-semantic-mcp
+pip install -e ".[dev]"
+findex            # 또는 python -m everything_semantic_mcp
+pytest
+```
+실행 파일 빌드: `cd packaging && pyinstaller findex.spec` (각 OS에서). 태그(`v*`)를 올리면 GitHub Actions가 4개 OS용으로 빌드·테스트·릴리스합니다.
+
+## 관련 프로젝트
+[elis132/everything-mcp](https://github.com/elis132/everything-mcp)(es.exe 기반, 느린 쿼리 보호), [mamertofabian/mcp-everything-search](https://github.com/mamertofabian/mcp-everything-search)(SDK DLL, macOS/Linux 지원). findex는 독립적으로 작성했고 **의미 검색 + 단어 완화 검색 + 사람용 검색 창 + 단일 실행 파일**에 집중합니다.
+
 ## 라이선스
-MIT. voidtools Everything의 비공식 확장이며, Everything은 voidtools의 상표입니다.
+MIT. voidtools Everything의 비공식 연동이며, Everything은 voidtools의 상표입니다.
