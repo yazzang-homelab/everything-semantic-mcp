@@ -23,7 +23,7 @@ jobs:
       - name: Install
         run: python -m pip install -e ".[dev]"
       - name: SQLite FTS5 trigram available
-        run: python -c "import sqlite3; c=sqlite3.connect(':memory:'); c.execute(\"create virtual table t using fts5(p, tokenize='trigram')\"); print(sqlite3.sqlite_version)"
+        run: python packaging/check_sqlite.py
       - name: Lint
         run: ruff check src tests packaging
       - name: Test (built-in engine on every OS; Everything tests skip without Everything)
