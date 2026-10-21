@@ -34,9 +34,8 @@ Windows · macOS · Linux 실행 파일 하나. 설치·Python 불필요.
    | OS | 파일 |
    |---|---|
    | Windows 10/11 | `findex-windows-x64.exe` |
-   | macOS Apple Silicon (M1~) | `findex-macos-arm64` |
-   | macOS Intel | `findex-macos-x64` |
-   | Linux x64 | `findex-linux-x64` |
+   | macOS Apple Silicon (M1~) | `findex-macos-arm64` (Intel Mac: 소스로 실행, 아래 참고) |
+      | Linux x64 | `findex-linux-x64` |
 
 2. **실행** — 더블클릭하면 브라우저에 검색 창이 열립니다.
    - Windows SmartScreen이 막으면 "추가 정보 → 실행" (서명 인증서 없는 오픈소스 빌드).

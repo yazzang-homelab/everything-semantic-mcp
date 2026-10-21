@@ -12,7 +12,7 @@
 
 ## Start
 
-1. Download `findex-windows-x64.exe`, `findex-macos-arm64`, `findex-macos-x64` or `findex-linux-x64` from Releases.
+1. Download `findex-windows-x64.exe`, `findex-macos-arm64` (Apple Silicon; Intel Macs: `pip install git+https://github.com/yazzang-homelab/everything-semantic-mcp`) or `findex-linux-x64` from Releases.
 2. Run it — a search page opens in your browser. (Windows SmartScreen: "More info → Run". macOS: `xattr -d com.apple.quarantine <file>; chmod +x <file>`.)
 3. Click **"의미 색인 만들기" (build meaning index)** once.
 

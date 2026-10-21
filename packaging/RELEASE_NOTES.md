@@ -6,7 +6,8 @@
 |---|---|
 | Windows 10/11 (x64) | `findex-windows-x64.exe` |
 | macOS (Apple Silicon) | `findex-macos-arm64` |
-| macOS (Intel) | `findex-macos-x64` |
+
+Intel Mac은 소스로 실행하세요: `pip install git+https://github.com/yazzang-homelab/everything-semantic-mcp && findex`
 | Linux (x64) | `findex-linux-x64` |
 
 **사용**

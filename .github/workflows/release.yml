@@ -43,9 +43,6 @@ jobs:
           - os: macos-latest
             asset: findex-macos-arm64
             built: dist/findex
-          - os: macos-13
-            asset: findex-macos-x64
-            built: dist/findex
           - os: ubuntu-22.04
             asset: findex-linux-x64
             built: dist/findex
