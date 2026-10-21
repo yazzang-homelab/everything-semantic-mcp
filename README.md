@@ -7,7 +7,7 @@
 
 <b>한국어</b> · <a href="README.en.md">English</a>
 
-<img src="promo/threads-1-hook.png" width="420" alt="이름 검색 0건, 의미 검색으로 찾는 예시">
+<a href="promo/everything-semantic-mcp.mp4"><img src="promo/poster.png" width="420" alt="이름 검색 0건, 의미 검색으로 찾는 예시 (클릭하면 22초 영상)"></a>
 
 </div>
 

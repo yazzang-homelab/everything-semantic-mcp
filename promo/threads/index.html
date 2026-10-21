@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Threads 업로드 키트 · everything-semantic-mcp</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--line:#1f2a3d;--ink:#e7edf7;--mute:#8b98ad;--acc:#ffb020;--ok:#3ddc97}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+  main{max-width:720px;margin:0 auto;padding:28px 16px 64px}
+  h1{font-size:22px;margin:0 0 4px} .sub{color:var(--mute);font-size:14px;margin:0 0 22px}
+  video{width:100%;aspect-ratio:1/1;border-radius:14px;border:1px solid var(--line);background:#000;display:block}
+  .dl{display:flex;gap:10px;margin:12px 0 30px}
+  a.btn,button.btn{flex:1;text-align:center;text-decoration:none;font:700 15px inherit;font-family:inherit;padding:13px 14px;border-radius:12px;
+    border:1px solid #3a2e10;background:#1a1408;color:var(--acc);cursor:pointer}
+  .post{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:0 0 14px;overflow:hidden}
+  .head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .head b{font-size:14px} .head span{color:var(--mute);font-size:12px;margin-left:8px}
+  .copy{font:700 13px inherit;font-family:inherit;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:#0d1320;color:var(--ink);cursor:pointer}
+  .copy.done{color:var(--ok);border-color:#1d5c43}
+  pre{margin:0;padding:14px;white-space:pre-wrap;word-break:keep-all;font:15px/1.65 inherit;font-family:inherit;color:var(--ink)}
+  .note{color:var(--mute);font-size:13px;line-height:1.6;margin-top:20px}
+  .thread{position:relative;margin-left:18px} .thread:before{content:"";position:absolute;left:-12px;top:-14px;bottom:20px;border-left:2px solid var(--line)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Threads 업로드 키트</h1>
+  <p class="sub">1:1 영상 다운로드 → 본문 붙여넣고 영상 첨부 → 게시 후 대댓글을 순서대로</p>
+
+  <video src="../everything-semantic-mcp.mp4" poster="../poster.png" controls playsinline muted loop></video>
+  <div class="dl">
+    <a class="btn" href="../everything-semantic-mcp.mp4" download>MP4 다운로드 (1080×1080 · 22초 · 1.2MB)</a>
+  </div>
+
+  <section class="post">
+    <div class="head"><div><b>① 본문</b><span>영상 첨부</span></div><button class="copy" data-for="p1">복사</button></div>
+<pre id="p1">파일 이름이 기억 안 나서 못 찾은 적 있나요?
+
+"신입 교육 자료"로 검색하면 0건.
+실제 이름은 "신입사원 온보딩 가이드"였어요.
+
+그래서 voidtools Everything에 '뜻으로 찾기'를 붙인 MCP 서버를 만들었습니다.
+Claude Code·Claude Desktop·Codex에서 AI가 직접 써요.
+
+▸ 의미 검색: 118만 개 이름에서 약 50ms
+▸ 전부 로컬: GPU·API 키 필요 없고 파일 목록이 밖으로 안 나감
+▸ 자가 진단: Everything이 멈추는 설정을 찾아서 해결법까지
+▸ es.exe·DLL 없이 순수 Python, 한글·NAS 경로 지원
+
+오픈소스(MIT) 링크는 댓글에 👇
+
+#MCP #ClaudeCode #Everything #오픈소스</pre>
+  </section>
+
+  <div class="thread">
+    <section class="post">
+      <div class="head"><div><b>② 대댓글 1</b><span>링크 · 설치</span></div><button class="copy" data-for="p2">복사</button></div>
+<pre id="p2">🔗 github.com/yazzang-homelab/everything-semantic-mcp
+
+Everything이 켜진 Windows라면 uv로 바로 실행돼요.
+README에 Claude Code·Claude Desktop 등록 방법이 있어요.
+처음 한 번 "의미 색인 만들어줘"라고 하면 준비 끝.</pre>
+    </section>
+
+    <section class="post">
+      <div class="head"><div><b>③ 대댓글 2</b><span>어떻게 50ms?</span></div><button class="copy" data-for="p3">복사</button></div>
+<pre id="p3">어떻게 50ms가 나오냐면
+
+1) 임베딩은 Model2Vec 정적 임베딩이에요. 토큰 벡터를 찾아서 평균만 내니까 GPU·ONNX·torch가 필요 없어요.
+
+2) 118만 개를 64차원으로 줄여서 후보 200개를 먼저 뽑고, 원래 256차원으로 다시 순위를 매겨요.
+전부 계산할 때와 상위 20개가 98% 일치하고, 1.8초 → 약 50ms.
+
+3) Everything과는 공식 IPC로 직접 통신해요. 크기·날짜가 응답에 들어 있어서 파일마다 다시 읽지 않아요.</pre>
+    </section>
+
+    <section class="post">
+      <div class="head"><div><b>④ 대댓글 3</b><span>자가 진단 썰</span></div><button class="copy" data-for="p4">복사</button></div>
+<pre id="p4">만들게 된 계기
+
+제 PC에서 Everything이 '응답 없음'으로 자꾸 멈췄는데, 원인이 설정이었어요.
+C 드라이브를 두 번 색인하고, NAS 폴더에 변경 감시를 켜 둔 게 문제였죠.
+
+그래서 이런 설정을 자동으로 찾아서 고치는 법까지 알려주는 진단 도구를 넣었어요.
+고친 뒤 메모리가 635MB에서 약 370MB로 줄었어요(제 PC 기준).
+
+측정: i7-1255U · Everything 1.4 x64 · 색인 612만 개</pre>
+    </section>
+  </div>
+
+  <p class="note">· 영상 속 파일 경로는 예시이고, 검색 시간·개수는 실측값입니다.<br>
+  · Threads 본문은 500자 제한 — 각 칸은 그 안에 맞춰 두었습니다.</p>
+</main>
+<script>
+  async function copyText(text){
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch {                                    // http:// (internal IP) has no clipboard API: fallback
+      const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); ta.remove(); return ok;
+    }
+  }
+  document.querySelectorAll('.copy').forEach(b=>b.addEventListener('click',async()=>{
+    const ok=await copyText(document.getElementById(b.dataset.for).textContent);
+    b.textContent=ok?'복사됨 ✓':'복사 실패'; b.classList.toggle('done',ok);
+    setTimeout(()=>{b.textContent='복사';b.classList.remove('done')},1600);
+  }));
+</script>
+</body>
+</html>
