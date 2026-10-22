@@ -103,6 +103,49 @@ def test_bad_size_raises(idx):
         li.query(index, "size:>abc")
 
 
+def test_hung_directory_does_not_hang_scan(tmp_path, monkeypatch):
+    """A listing that never returns (dead network mount) ends the scan with partial results."""
+    import threading
+
+    root = tmp_path / "r"
+    for d in ("ok/a", "hang/inner"):
+        (root / d).mkdir(parents=True)
+        (root / d / "f.txt").write_text("x")
+    release = threading.Event()
+    real = os.scandir
+
+    def fake(path):
+        if str(path).replace("\\", "/").endswith("/hang"):
+            release.wait()
+        return real(path)
+
+    monkeypatch.setattr(li, "STALL_SEC", 1.0)
+    monkeypatch.setattr(li.os, "scandir", fake)
+    index = li.LocalIndex(tmp_path / "n.db", roots=[str(root)], workers=2)
+    t = time.perf_counter()
+    stats = index.scan(str(root))
+    release.set()
+    assert time.perf_counter() - t < 8 and stats.stalled
+    assert li.query(index, "ok", max_results=0)[0] >= 1  # what was reached is searchable
+
+
+def test_rescans_do_not_grow_db(tmp_path):
+    """FTS segments are merged after each swap: size per row stays flat across rescans."""
+    root = tmp_path / "r"
+    for i in range(3000):
+        p = root / f"d{i % 30}" / f"file_{i:05d}_보고서.txt"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x")
+    index = li.LocalIndex(tmp_path / "n.db", roots=[str(root)])
+    sizes = []
+    for _ in range(3):
+        index.scan(str(root))
+        with index.connect() as c:
+            c.execute("VACUUM")
+        sizes.append(os.path.getsize(tmp_path / "n.db"))
+    assert sizes[2] <= sizes[0] * 1.15, sizes
+
+
 def test_explicit_roots_suppress_default_home_scan(tmp_path, monkeypatch):
     """`findex roots add X` before the first scan: only X is indexed, not the home folder."""
     from everything_semantic_mcp import engine as eng_mod

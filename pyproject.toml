@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "findex"
-version = "0.2.0"
+version = "0.2.1"
 description = "File search for people and AI agents: name + local multilingual meaning search, as a web UI and an MCP server. Uses voidtools Everything on Windows when available, its own index on macOS/Linux."
 readme = "README.md"
 license = "MIT"

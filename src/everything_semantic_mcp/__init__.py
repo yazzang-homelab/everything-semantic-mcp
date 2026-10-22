@@ -1,6 +1,6 @@
 """Everything (voidtools) MCP server with local semantic search and a configuration self-check."""
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 def main() -> None:

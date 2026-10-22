@@ -122,6 +122,10 @@ class ScanStats:
     entries: int = 0
     errors: int = 0
     seconds: float = 0.0
+    stalled: bool = False
+
+
+STALL_SEC = float(os.environ.get("FINDEX_SCAN_STALL_SEC", "600"))
 
 
 class LocalIndex:
@@ -231,7 +235,15 @@ class LocalIndex:
         for t in threads:
             t.start()
         while True:
-            batch = out.get()
+            try:
+                batch = out.get(timeout=STALL_SEC)
+            except queue.Empty:
+                # A network mount that stops answering leaves listing calls blocked in the kernel
+                # (seen on SMB: hours in D state). Those threads cannot be killed; stop waiting
+                # for them and keep what was collected. They are daemons and die with the process.
+                stats.stalled = True
+                stats.errors += 1
+                return
             if batch is None:
                 break
             yield from batch
@@ -279,6 +291,10 @@ class LocalIndex:
                     (root, gen),
                 ).rowcount:
                     c.commit()
+                c.commit()
+                # The delete trigger leaves FTS5 'delete' entries in index segments until merged;
+                # measured +~650 B per live row per rescan without this (678 -> 1397 -> 1933 B/row).
+                c.execute("INSERT INTO entries_fts(entries_fts) VALUES('optimize')")
                 c.commit()
                 c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 c.execute("ANALYZE")
